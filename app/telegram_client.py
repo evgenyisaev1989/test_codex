@@ -74,6 +74,14 @@ class TelegramService:
                 chats.append(ChatSummary(id=dialog.id, title=title))
             return chats
 
+    @staticmethod
+    def _is_incoming_message(message):
+        if hasattr(message, "incoming"):
+            return bool(message.incoming)
+        if hasattr(message, "out"):
+            return not bool(message.out)
+        return True
+
     async def _list_incoming_messages(self, chat_id):
         client = await self._client()
         async with client:
@@ -82,12 +90,14 @@ class TelegramService:
             entity = await client.get_entity(int(chat_id))
             messages = []
             async for message in client.iter_messages(entity, limit=self.message_limit):
-                if not message.incoming:
+                if not self._is_incoming_message(message):
                     continue
                 sender = "Unknown"
-                if message.sender:
-                    sender = getattr(message.sender, "first_name", None) or getattr(message.sender, "title", None) or "Unknown"
-                text = message.message or "[media/service message]"
-                date = message.date.strftime("%Y-%m-%d %H:%M:%S") if message.date else ""
+                message_sender = getattr(message, "sender", None)
+                if message_sender:
+                    sender = getattr(message_sender, "first_name", None) or getattr(message_sender, "title", None) or "Unknown"
+                text = getattr(message, "message", None) or "[media/service message]"
+                message_date = getattr(message, "date", None)
+                date = message_date.strftime("%Y-%m-%d %H:%M:%S") if message_date else ""
                 messages.append(MessageSummary(id=message.id, text=text, sender=sender, date=date, incoming=True))
             return messages
